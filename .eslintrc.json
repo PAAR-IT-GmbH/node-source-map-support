@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "standard-with-typescript"
+  ],
+  "root": true,
+  "parserOptions": {
+    "ecmaVersion": 2018,
+    "module": "system",
+    "project": "./tsconfig.json"
+  },
+  "rules": {
+    "@typescript-eslint/no-invalid-void-type": 0
+  },
+  "ignorePatterns": [
+    "*.js",
+    "**/node_modules/"
+  ]
+}
