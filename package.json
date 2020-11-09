@@ -1,19 +1,25 @@
 {
-  "name": "source-map-support",
+  "name": "@paar-it-gmbh/source-map-support",
   "description": "Fixes stack traces for files with source maps",
-  "version": "0.5.19",
-  "main": "./source-map-support.js",
+  "version": "1.0.0",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "node build.js",
-    "serve-tests": "http-server -p 1336",
-    "prepublish": "npm run build",
+    "build": "tsc",
     "test": "mocha"
   },
   "dependencies": {
     "source-map": "^0.6.0"
   },
   "devDependencies": {
-    "mocha": "^3.5.3"
+    "@types/node": "^14.14.6",
+    "eslint": "^7.13.0",
+    "eslint-config-standard-with-typescript": "^19.0.1",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.2",
+    "mocha": "^8.2.1",
+    "typescript": "^4.0.5"
   },
   "repository": {
     "type": "git",
@@ -22,5 +28,9 @@
   "bugs": {
     "url": "https://github.com/evanw/node-source-map-support/issues"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "types": "./dist/index.d.ts"
 }
