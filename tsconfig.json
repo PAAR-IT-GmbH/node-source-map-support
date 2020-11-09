@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+      "sourceMap": true,
+      "declaration": true,
+      "declarationMap": true,
+      "strict": true,
+      "moduleResolution": "node",
+      "target": "es6",
+      "esModuleInterop": true,
+      "module": "CommonJS",
+    },
+    "include": [
+        "source-map-support.ts"
+    ]
+}
