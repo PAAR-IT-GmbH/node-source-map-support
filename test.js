@@ -6,7 +6,6 @@ var SourceMapGenerator = require('source-map').SourceMapGenerator;
 var child_process = require('child_process');
 var assert = require('assert');
 var fs = require('fs');
-var bufferFrom = require('buffer-from');
 
 function compareLines(actual, expected) {
   assert(actual.length >= expected.length, 'got ' + actual.length + ' lines but expected at least ' + expected.length + ' lines');
@@ -101,7 +100,7 @@ function compareStackTrace(sourceMap, source, expected) {
   // Check again with an inline source map (in a data URL)
   fs.writeFileSync('.generated.js', 'exports.test = function() {' +
     source.join('\n') + '};//@ sourceMappingURL=data:application/json;base64,' +
-    bufferFrom(sourceMap.toString()).toString('base64'));
+    Buffer.from(sourceMap.toString()).toString('base64'));
   try {
     delete require.cache[require.resolve('./.generated')];
     require('./.generated').test();
@@ -291,7 +290,7 @@ it('throw in Timeout with empty source map', function(done) {
   ], [
     /[/\\].generated.js:3$/,
     '    throw new Error("this is the error")',
-    /^          \^$/,
+    /^    \^$/,
     'Error: this is the error',
     /^    at ((null)|(Timeout))\._onTimeout \((?:.*[/\\])?.generated\.js:3:11\)$/
   ]);
@@ -461,65 +460,6 @@ it('sourcesContent', function(done) {
   ]);
 });
 
-it('missing source maps should also be cached', function(done) {
-  compareStdout(done, createSingleLineSourceMap(), [
-    '',
-    'var count = 0;',
-    'function foo() {',
-    '  console.log(new Error("this is the error").stack.split("\\n").slice(0, 2).join("\\n"));',
-    '}',
-    'require("./source-map-support").install({',
-    '  overrideRetrieveSourceMap: true,',
-    '  retrieveSourceMap: function(name) {',
-    '    if (/\\.generated.js$/.test(name)) count++;',
-    '    return null;',
-    '  }',
-    '});',
-    'process.nextTick(foo);',
-    'process.nextTick(foo);',
-    'process.nextTick(function() { console.log(count); });',
-  ], [
-    'Error: this is the error',
-    /^    at foo \((?:.*[/\\])?.generated.js:4:15\)$/,
-    'Error: this is the error',
-    /^    at foo \((?:.*[/\\])?.generated.js:4:15\)$/,
-    '1', // The retrieval should only be attempted once
-  ]);
-});
-
-it('should consult all retrieve source map providers', function(done) {
-  compareStdout(done, createSingleLineSourceMap(), [
-    '',
-    'var count = 0;',
-    'function foo() {',
-    '  console.log(new Error("this is the error").stack.split("\\n").slice(0, 2).join("\\n"));',
-    '}',
-    'require("./source-map-support").install({',
-    '  retrieveSourceMap: function(name) {',
-    '    if (/\\.generated.js$/.test(name)) count++;',
-    '    return undefined;',
-    '  }',
-    '});',
-    'require("./source-map-support").install({',
-    '  retrieveSourceMap: function(name) {',
-    '    if (/\\.generated.js$/.test(name)) {',
-    '      count++;',
-    '      return ' + JSON.stringify({url: '.original.js', map: createMultiLineSourceMapWithSourcesContent().toJSON()}) + ';',
-    '    }',
-    '  }',
-    '});',
-    'process.nextTick(foo);',
-    'process.nextTick(foo);',
-    'process.nextTick(function() { console.log(count); });',
-  ], [
-    'Error: this is the error',
-    /^    at foo \((?:.*[/\\])?original\.js:1004:5\)$/,
-    'Error: this is the error',
-    /^    at foo \((?:.*[/\\])?original\.js:1004:5\)$/,
-    '1', // The retrieval should only be attempted once
-  ]);
-});
-
 it('should allow for runtime inline source maps', function(done) {
   var sourceMap = createMultiLineSourceMapWithSourcesContent();
 
@@ -543,7 +483,7 @@ it('should allow for runtime inline source maps', function(done) {
           'process.nextTick(foo);',
           'process.nextTick(foo);',
           'process.nextTick(function() { console.log(count); });',
-          '//@ sourceMappingURL=data:application/json;charset=utf8;base64,' + bufferFrom(sourceMap.toString()).toString('base64')
+          '//@ sourceMappingURL=data:application/json;charset=utf8;base64,' + Buffer.from(sourceMap.toString()).toString('base64')
         ].join('\n')),
         ', filename);',
     '};',
@@ -571,7 +511,7 @@ it('finds source maps with charset specified', function() {
 
   fs.writeFileSync('.generated.js', 'exports.test = function() {' +
     source.join('\n') + '};//@ sourceMappingURL=data:application/json;charset=utf8;base64,' +
-    bufferFrom(sourceMap.toString()).toString('base64'));
+    Buffer.from(sourceMap.toString()).toString('base64'));
   try {
     delete require.cache[require.resolve('./.generated')];
     require('./.generated').test();
@@ -595,7 +535,7 @@ it('allows code/comments after sourceMappingURL', function() {
 
   fs.writeFileSync('.generated.js', 'exports.test = function() {' +
     source.join('\n') + '};//# sourceMappingURL=data:application/json;base64,' +
-    bufferFrom(sourceMap.toString()).toString('base64') +
+    Buffer.from(sourceMap.toString()).toString('base64') +
     '\n// Some comment below the sourceMappingURL\nvar foo = 0;');
   try {
     delete require.cache[require.resolve('./.generated')];
