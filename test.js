@@ -15,7 +15,7 @@ function compareLines(actual, expected) {
     if (expected[i] instanceof RegExp) {
       assert(expected[i].test(actual[i]), JSON.stringify(actual[i]) + ' does not match ' + expected[i]);
     } else {
-      assert.equal(actual[i], expected[i]);
+      assert.strictEqual(actual[i], expected[i]);
     }
   }
 }

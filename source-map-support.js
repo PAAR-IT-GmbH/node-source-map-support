@@ -31,9 +31,6 @@ var uncaughtShimInstalled = false;
 // If true, the caches are reset before a stack trace formatting operation
 var emptyCacheBetweenOperations = false;
 
-// Supports {browser, node, auto}
-var environment = "auto";
-
 // Maps a file path to a string containing the file contents
 var fileContentsCache = {};
 
@@ -47,13 +44,7 @@ var reSourceMap = /^data:application\/json[^,]+base64,/;
 var retrieveFileHandlers = [];
 var retrieveMapHandlers = [];
 
-function isInBrowser() {
-  if (environment === "browser")
-    return true;
-  if (environment === "node")
-    return false;
-  return ((typeof window !== 'undefined') && (typeof XMLHttpRequest === 'function') && !(window.require && window.module && window.process && window.process.type === "renderer"));
-}
+
 
 function hasGlobalProcessEventEmitter() {
   return ((typeof process === 'object') && (process !== null) && (typeof process.on === 'function'));
@@ -90,18 +81,7 @@ retrieveFileHandlers.push(function(path) {
 
   var contents = '';
   try {
-    if (!fs) {
-      // Use SJAX if we are in the browser
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', path, /** async */ false);
-      xhr.send(null);
-      if (xhr.readyState === 4 && xhr.status === 200) {
-        contents = xhr.responseText;
-      }
-    } else if (fs.existsSync(path)) {
-      // Otherwise, use the filesystem
       contents = fs.readFileSync(path, 'utf8');
-    }
   } catch (er) {
     /* ignore any errors */
   }
@@ -127,23 +107,6 @@ function supportRelativeURL(file, url) {
 
 function retrieveSourceMapURL(source) {
   var fileData;
-
-  if (isInBrowser()) {
-     try {
-       var xhr = new XMLHttpRequest();
-       xhr.open('GET', source, false);
-       xhr.send(null);
-       fileData = xhr.readyState === 4 ? xhr.responseText : null;
-
-       // Support providing a sourceMappingURL via the SourceMap header
-       var sourceMapHeader = xhr.getResponseHeader("SourceMap") ||
-                             xhr.getResponseHeader("X-SourceMap");
-       if (sourceMapHeader) {
-         return sourceMapHeader;
-       }
-     } catch (e) {
-     }
-  }
 
   // Get the URL of the source map
   fileData = retrieveFile(source);
@@ -370,7 +333,7 @@ function wrapCallSite(frame, state) {
     // Test node versions for: 10.16-19, 10.20+, 12-19, 20-99, 100+, or 11.11
     var noHeader = /^v(10\.1[6-9]|10\.[2-9][0-9]|10\.[0-9]{3,}|1[2-9]\d*|[2-9]\d|\d{3,}|11\.11)/;
     var headerLength = noHeader.test(process.version) ? 0 : 62;
-    if (line === 1 && column > headerLength && !isInBrowser() && !frame.isEval()) {
+    if (line === 1 && column > headerLength && !frame.isEval()) {
       column -= headerLength;
     }
 
@@ -507,13 +470,6 @@ exports.retrieveSourceMap = retrieveSourceMap;
 exports.install = function(options) {
   options = options || {};
 
-  if (options.environment) {
-    environment = options.environment;
-    if (["node", "browser", "auto"].indexOf(environment) === -1) {
-      throw new Error("environment " + environment + " was unknown. Available options are {auto, browser, node}")
-    }
-  }
-
   // Allow sources to be found by methods other than reading the files
   // directly from disk.
   if (options.retrieveFile) {
@@ -535,7 +491,7 @@ exports.install = function(options) {
   }
 
   // Support runtime transpilers that include inline source maps
-  if (options.hookRequire && !isInBrowser()) {
+  if (options.hookRequire) {
     // Use dynamicRequire to avoid including in browser bundles
     var Module = dynamicRequire(module, 'module');
     var $compile = Module.prototype._compile;
