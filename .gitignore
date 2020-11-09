@@ -1,1 +1,3 @@
 node_modules/
+source-map-support.d.*
+source-map-support.j*
