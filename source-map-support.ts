@@ -21,10 +21,10 @@ interface Options {
 }
 
 // Only install once if called multiple times
-var installed = false
+let installed = false
 
 // If true, the caches are reset before a stack trace formatting operation
-var emptyCacheBetweenOperations = false
+let emptyCacheBetweenOperations = false
 
 // Maps a file path to a string containing the file contents
 let fileContentsCache: { [key: string]: string | null } = {}
@@ -52,7 +52,7 @@ export function install (options?: Options): void {
   // Support runtime transpilers that include inline source maps
   if (options.hookRequire === true) {
     // @ts-expect-error
-    var $compile = Module.prototype._compile
+    const $compile = Module.prototype._compile
     // @ts-expect-error
     Module.prototype._compile = function (content: string, filename: string) {
       fileContentsCache[filename] = content
@@ -70,19 +70,19 @@ export function install (options?: Options): void {
 // Generate position and snippet of original source with pointer
 export function getErrorSource (error: Error): null | string {
   if (error.stack === undefined) return null
-  var match = /\n {4}at [^(]+ \((.*):(\d+):(\d+)\)/.exec(error.stack)
+  const match = /\n {4}at [^(]+ \((.*):(\d+):(\d+)\)/.exec(error.stack)
   if (match !== null) {
-    var source = match[1]
-    var line = +match[2]
-    var column = +match[3]
+    const source = match[1]
+    const line = +match[2]
+    const column = +match[3]
 
     // Support the inline sourceContents inside the source map
-    var contents = retrieveFile(source)
+    const contents = retrieveFile(source)
 
     if (contents === null) return null
 
     // Format the line from the original source code like node does
-    var code = contents.split(/(?:\r\n|\r|\n)/)[line - 1]
+    const code = contents.split(/(?:\r\n|\r|\n)/)[line - 1]
     if (code === undefined) return null
 
     return source + ':' + line.toString() + '\n' + code + '\n' + new Array(column).join(' ') + '^'
@@ -120,10 +120,10 @@ function retrieveFile (path: string): string | null {
 // in case we are in the browser (i.e. directories may start with "http://" or "file:///")
 function supportRelativeURL (file: string | null, url: string): string {
   if (file === null) return url
-  var dir = path.dirname(file)
-  var match = /^\w+:\/\/[^/]*/.exec(dir)
-  var protocol = match !== null ? match[0] : ''
-  var startPath = dir.slice(protocol.length)
+  const dir = path.dirname(file)
+  const match = /^\w+:\/\/[^/]*/.exec(dir)
+  let protocol = match !== null ? match[0] : ''
+  const startPath = dir.slice(protocol.length)
   if (protocol !== '' && /^\/\w:/.test(startPath)) {
     // handle file:///C:/ paths
     protocol += '/'
@@ -137,7 +137,7 @@ function retrieveSourceMapURL (source: string): string | null {
   const fileData = retrieveFile(source)
   if (fileData === null) return null
 
-  var re = /(?:\/\/[@#][\s]*sourceMappingURL=([^\s'"]+)[\s]*$)|(?:\/\*[@#][\s]*sourceMappingURL=([^\s*'"]+)[\s]*(?:\*\/)[\s]*$)/mg
+  const re = /(?:\/\/[@#][\s]*sourceMappingURL=([^\s'"]+)[\s]*$)|(?:\/\*[@#][\s]*sourceMappingURL=([^\s*'"]+)[\s]*(?:\*\/)[\s]*$)/mg
   // Keep executing the search to find the *last* sourceMappingURL to avoid
   // picking up sourceMappingURLs from comments, strings, etc.
   let lastMatch: RegExpExecArray | null = null
@@ -153,14 +153,14 @@ function retrieveSourceMapURL (source: string): string | null {
 // JSON object (ie, it must be a valid argument to the SourceMapConsumer
 // constructor).
 function retrieveSourceMap (source: string): SourceMapRaw | null {
-  var sourceMappingURL = retrieveSourceMapURL(source)
+  let sourceMappingURL = retrieveSourceMapURL(source)
   if (sourceMappingURL === null) return null
 
   // Read the contents of the source map
-  var sourceMapData
+  let sourceMapData
   if (reSourceMap.test(sourceMappingURL)) {
     // Support source map URL as a data url
-    var rawData = sourceMappingURL.slice(sourceMappingURL.indexOf(',') + 1)
+    const rawData = sourceMappingURL.slice(sourceMappingURL.indexOf(',') + 1)
     sourceMapData = Buffer.from(rawData, 'base64').toString()
     sourceMappingURL = source
   } else {
@@ -195,9 +195,9 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
       // to pretend like they are already loaded. They may not exist on disk.
       // @ts-expect-error
       consumer.sources.forEach(function (source: string, i: number) {
-        var contents = consumer.sourceContentFor(source, true)
+        const contents = consumer.sourceContentFor(source, true)
         if (contents === null) return
-        var url = supportRelativeURL(urlAndMap.url, source)
+        const url = supportRelativeURL(urlAndMap.url, source)
         fileContentsCache[url] = contents
       })
     } else {
@@ -208,7 +208,7 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
   if (sourceMap === null) return null
 
   // Resolve the source URL relative to the URL of the source map
-  var originalPosition = sourceMap.map.originalPositionFor({ line, column })
+  const originalPosition = sourceMap.map.originalPositionFor({ line, column })
 
   // Only return the original position if a matching line was found. If no
   // matching line is found then we return position instead, which will cause
@@ -236,9 +236,9 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
 // https://code.google.com/p/v8/source/browse/trunk/src/messages.js
 function mapEvalOrigin (origin: string): string {
   // Most eval() calls are in this format
-  var match = /^eval at ([^(]+) \((.+):(\d+):(\d+)\)$/.exec(origin)
+  let match = /^eval at ([^(]+) \((.+):(\d+):(\d+)\)$/.exec(origin)
   if (match !== null) {
-    var position = mapSourcePosition(
+    const position = mapSourcePosition(
       match[2],
       +match[3],
       parseInt(match[4]) - 1
@@ -260,7 +260,7 @@ function mapEvalOrigin (origin: string): string {
 
 function cloneCallSite (frame: NodeJS.CallSite): NodeJS.CallSite {
   // @ts-expect-error
-  var object: NodeJS.CallSite = {}
+  const object: NodeJS.CallSite = {}
   Object.getOwnPropertyNames(Object.getPrototypeOf(frame)).forEach(function (name) {
     // @ts-expect-error
     // eslint-disable-next-line no-useless-call
@@ -269,10 +269,11 @@ function cloneCallSite (frame: NodeJS.CallSite): NodeJS.CallSite {
   return object
 }
 
-function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | MappedPosition, curPosition: null | MappedPosition }): NodeJS.CallSite {
+function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | MappedPosition, curPosition: null | MappedPosition }): string {
   if (frame.isNative()) {
     state.curPosition = null
-    return frame
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    return frame.toString()
   }
 
   // Most call sites will return the source file from getFileName(), but code
@@ -291,8 +292,8 @@ function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | Map
     // Header removed in node at ^10.16 || >=11.11.0
     // v11 is not an LTS candidate, we can just test the one version with it.
     // Test node versions for: 10.16-19, 10.20+, 12-19, 20-99, 100+, or 11.11
-    var noHeader = /^v(10\.1[6-9]|10\.[2-9][0-9]|10\.[0-9]{3,}|1[2-9]\d*|[2-9]\d|\d{3,}|11\.11)/
-    var headerLength = noHeader.test(process.version) ? 0 : 62
+    const noHeader = /^v(10\.1[6-9]|10\.[2-9][0-9]|10\.[0-9]{3,}|1[2-9]\d*|[2-9]\d|\d{3,}|11\.11)/
+    const headerLength = noHeader.test(process.version) ? 0 : 62
     if (line === 1 && column > headerLength && !frame.isEval()) {
       column -= headerLength
     }
@@ -303,13 +304,12 @@ function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | Map
       column
     )
 
-    if (position === null) {
-      return frame
-    }
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    if (position === null) return frame.toString()
 
     state.curPosition = position
     frame = cloneCallSite(frame)
-    var originalFunctionName = frame.getFunctionName
+    const originalFunctionName = frame.getFunctionName
     frame.getFunctionName = function () {
       if (state.nextPosition == null) {
         return originalFunctionName()
@@ -321,25 +321,25 @@ function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | Map
     frame.getColumnNumber = () => { return position.column + 1 }
     // @ts-expect-error
     frame.getScriptNameOrSourceURL = () => { return position.source }
-    return frame
+    return toString(frame)
   }
 
   // Code called using eval() needs special handling
-  var origin = frame.isEval() && frame.getEvalOrigin()
-  if (origin !== undefined && origin !== false) {
+  let origin = frame.isEval() ? frame.getEvalOrigin() : undefined
+  if (origin !== undefined) {
     origin = mapEvalOrigin(origin)
     frame = cloneCallSite(frame)
-    // @ts-expect-error
     frame.getEvalOrigin = function () { return origin }
-    return frame
+    return toString(frame)
   }
 
   // If we get here then we were unable to change the source position
-  return frame
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  return frame.toString()
 }
 
 function printErrorAndExit (error: Error): void {
-  var source = getErrorSource(error)
+  const source = getErrorSource(error)
 
   if (source !== null) {
     console.error()
@@ -351,13 +351,13 @@ function printErrorAndExit (error: Error): void {
 }
 
 function shimEmitUncaughtException (): void {
-  var origEmit = process.emit
+  const origEmit = process.emit
 
   // @ts-expect-error
   process.emit = function (event: string, ...args: any[]) {
     if (event === 'uncaughtException') {
-      var hasStack = args[0]?.stack !== undefined
-      var hasListeners = (this.listeners(event).length > 0)
+      const hasStack = args[0]?.stack !== undefined
+      const hasListeners = (this.listeners(event).length > 0)
 
       if (hasStack && !hasListeners) {
         return printErrorAndExit(args[0])
@@ -377,18 +377,19 @@ function prepareStackTrace (err: Error, stackTraces: NodeJS.CallSite[]): string 
     sourceMapCache = {}
   }
 
-  var name = err.name ?? 'Error'
-  var message = err.message ?? ''
-  var errorString = name + ': ' + message
+  const name = err.name ?? 'Error'
+  const message = err.message ?? ''
+  const errorString = name + ': ' + message
 
-  var state = { nextPosition: null, curPosition: null }
-  var processedStack = []
-  for (var i = stackTraces.length - 1; i >= 0; i--) {
-    processedStack.push('\n    at ' + toString(wrapCallSite(stackTraces[i], state)))
+  const state = { nextPosition: null, curPosition: null }
+
+  const processedStack = new Array(stackTraces.length)
+  for (let i = stackTraces.length - 1; i >= 0; i--) {
+    processedStack[i] = '\n    at ' + wrapCallSite(stackTraces[i], state)
     state.nextPosition = state.curPosition
   }
   state.curPosition = state.nextPosition = null
-  return errorString + processedStack.reverse().join('')
+  return errorString + processedStack.join('')
 }
 
 // This is copied almost verbatim from the V8 source code at
@@ -418,24 +419,24 @@ function toString (frame: NodeJS.CallSite): string {
       // an eval string.
       fileLocation += '<anonymous>'
     }
-    var lineNumber = frame.getLineNumber()
+    const lineNumber = frame.getLineNumber()
     if (lineNumber !== null) {
       fileLocation += ':' + lineNumber.toString()
-      var columnNumber = frame.getColumnNumber()
+      const columnNumber = frame.getColumnNumber()
       if (columnNumber !== null) {
         fileLocation += ':' + columnNumber.toString()
       }
     }
   }
 
-  var line = ''
-  var functionName = frame.getFunctionName()
-  var addSuffix = true
-  var isConstructor = frame.isConstructor()
-  var isMethodCall = !(frame.isToplevel() || isConstructor)
+  let line = ''
+  const functionName = frame.getFunctionName()
+  let addSuffix = true
+  const isConstructor = frame.isConstructor()
+  const isMethodCall = !(frame.isToplevel() || isConstructor)
   if (isMethodCall) {
-    var typeName = frame.getTypeName()
-    var methodName = frame.getMethodName()
+    const typeName = frame.getTypeName()
+    const methodName = frame.getMethodName()
     if (functionName !== null) {
       if (typeName !== null && functionName.indexOf(typeName) !== 0) {
         line += typeName + '.'
