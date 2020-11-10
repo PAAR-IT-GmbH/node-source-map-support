@@ -290,7 +290,7 @@ it('throw in Timeout with empty source map', function(done) {
   ], [
     /[/\\].generated.js:3$/,
     '    throw new Error("this is the error")',
-    /^    \^$/,
+    /^          \^$/,
     'Error: this is the error',
     /^    at ((null)|(Timeout))\._onTimeout \((?:.*[/\\])?.generated\.js:3:11\)$/
   ]);
