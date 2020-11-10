@@ -1,9 +1,8 @@
-import { SourceMapConsumer, MappedPosition } from 'source-map'
+// @ts-expect-error
+import { SourceMapConsumerSync, SourceMapConsumer, MappedPosition } from '@gerhobbelt/source-map'
 import path from 'path'
 import fs from 'fs'
 import Module from 'module'
-// @ts-expect-error
-import CallSiteToString from './CallSiteToString'
 
 interface SourceMap {
   url: string
@@ -22,9 +21,7 @@ interface Options {
 }
 
 // Only install once if called multiple times
-var errorFormatterInstalled = false
-var uncaughtShimInstalled = false
-var hookRequireInstalled = false
+var installed = false
 
 // If true, the caches are reset before a stack trace formatting operation
 var emptyCacheBetweenOperations = false
@@ -37,6 +34,61 @@ let sourceMapCache: { [key: string]: SourceMap | null } = {}
 
 // Regex for detecting source maps
 const reSourceMap = /^data:application\/json[^,]+base64,/
+
+export function install (options?: Options): void {
+  if (installed) return
+  installed = true
+
+  options = options ?? {}
+
+  // Configure options
+  if (!emptyCacheBetweenOperations) {
+    emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true
+  }
+
+  // Install the error reformatter
+  Error.prepareStackTrace = prepareStackTrace
+
+  // Support runtime transpilers that include inline source maps
+  if (options.hookRequire === true) {
+    // @ts-expect-error
+    var $compile = Module.prototype._compile
+    // @ts-expect-error
+    Module.prototype._compile = function (content: string, filename: string) {
+      fileContentsCache[filename] = content
+      // @ts-expect-error
+      sourceMapCache[filename] = undefined
+      return $compile.call(this, content, filename)
+    }
+  }
+
+  if (options.handleUncaughtExceptions !== false) {
+    shimEmitUncaughtException()
+  }
+}
+
+// Generate position and snippet of original source with pointer
+export function getErrorSource (error: Error): null | string {
+  if (error.stack === undefined) return null
+  var match = /\n {4}at [^(]+ \((.*):(\d+):(\d+)\)/.exec(error.stack)
+  if (match !== null) {
+    var source = match[1]
+    var line = +match[2]
+    var column = +match[3]
+
+    // Support the inline sourceContents inside the source map
+    var contents = retrieveFile(source)
+
+    if (contents === null) return null
+
+    // Format the line from the original source code like node does
+    var code = contents.split(/(?:\r\n|\r|\n)/)[line - 1]
+    if (code === undefined) return null
+
+    return source + ':' + line.toString() + '\n' + code + '\n' + new Array(column).join(' ') + '^'
+  }
+  return null
+}
 
 function retrieveFile (path: string): string | null {
   // Trim the path to make sure there is no extra whitespace.
@@ -80,7 +132,7 @@ function supportRelativeURL (file: string | null, url: string): string {
   return protocol + path.resolve(dir.slice(protocol.length), url)
 }
 
-function retrieveSourceMapURL(source: string): string | null {
+function retrieveSourceMapURL (source: string): string | null {
   // Get the URL of the source map
   const fileData = retrieveFile(source)
   if (fileData === null) return null
@@ -133,7 +185,7 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
     // Call the (overrideable) retrieveSourceMap function to get the source map.
     const urlAndMap = retrieveSourceMap(source)
     if (urlAndMap !== null) {
-      const consumer = new SourceMapConsumer(urlAndMap.map as any)
+      const consumer = (new SourceMapConsumerSync(urlAndMap.map as any)) as SourceMapConsumer
       sourceMap = sourceMapCache[source] = {
         url: urlAndMap.url,
         map: consumer
@@ -141,7 +193,6 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
 
       // Load all sources stored inline with the source map into the file cache
       // to pretend like they are already loaded. They may not exist on disk.
-
       // @ts-expect-error
       consumer.sources.forEach(function (source: string, i: number) {
         var contents = consumer.sourceContentFor(source, true)
@@ -177,7 +228,7 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
     line,
     column,
     source,
-    name: originalPosition.name
+    name: originalPosition.name ?? undefined
   }
 }
 
@@ -207,7 +258,7 @@ function mapEvalOrigin (origin: string): string {
   return origin
 }
 
-function cloneCallSite(frame: NodeJS.CallSite): NodeJS.CallSite {
+function cloneCallSite (frame: NodeJS.CallSite): NodeJS.CallSite {
   // @ts-expect-error
   var object: NodeJS.CallSite = {}
   Object.getOwnPropertyNames(Object.getPrototypeOf(frame)).forEach(function (name) {
@@ -215,7 +266,6 @@ function cloneCallSite(frame: NodeJS.CallSite): NodeJS.CallSite {
     // eslint-disable-next-line no-useless-call
     object[name] = /^(?:is|get)/.test(name) ? function () { return frame[name].call(frame) } : frame[name]
   })
-  object.toString = CallSiteToString
   return object
 }
 
@@ -288,29 +338,6 @@ function wrapCallSite (frame: NodeJS.CallSite, state: { nextPosition: null | Map
   return frame
 }
 
-// Generate position and snippet of original source with pointer
-function getErrorSource (error: Error): null | string {
-  if (error.stack === undefined) return null
-  var match = /\n {4}at [^(]+ \((.*):(\d+):(\d+)\)/.exec(error.stack)
-  if (match !== null) {
-    var source = match[1]
-    var line = +match[2]
-    var column = +match[3]
-
-    // Support the inline sourceContents inside the source map
-    var contents = retrieveFile(source)
-
-    if (contents === null) return null
-
-    // Format the line from the original source code like node does
-    var code = contents.split(/(?:\r\n|\r|\n)/)[line - 1]
-    if (code === undefined) return null
-
-    return source + ':' + line.toString() + '\n' + code + '\n' + new Array(column).join(' ') + '^'
-  }
-  return null
-}
-
 function printErrorAndExit (error: Error): void {
   var source = getErrorSource(error)
 
@@ -343,7 +370,7 @@ function shimEmitUncaughtException (): void {
 }
 
 // This function is part of the V8 stack trace API, for more info see:
-// https://v8.dev/docs/stack-trace-api
+// https://github.com/v8/v8/wiki/Stack-Trace-API
 function prepareStackTrace (err: Error, stackTraces: NodeJS.CallSite[]): string {
   if (emptyCacheBetweenOperations) {
     fileContentsCache = {}
@@ -357,45 +384,79 @@ function prepareStackTrace (err: Error, stackTraces: NodeJS.CallSite[]): string 
   var state = { nextPosition: null, curPosition: null }
   var processedStack = []
   for (var i = stackTraces.length - 1; i >= 0; i--) {
-    processedStack.push('\n    at ' + (wrapCallSite(stackTraces[i], state) as any as string))
+    processedStack.push('\n    at ' + toString(wrapCallSite(stackTraces[i], state)))
     state.nextPosition = state.curPosition
   }
   state.curPosition = state.nextPosition = null
   return errorString + processedStack.reverse().join('')
 }
 
-exports.getErrorSource = getErrorSource
-
-exports.install = function (options?: Options) {
-  options = options ?? {}
-
-  // Configure options
-  if (!emptyCacheBetweenOperations) {
-    emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true
-  }
-
-  // Install the error reformatter
-  if (!errorFormatterInstalled) {
-    errorFormatterInstalled = true
-    Error.prepareStackTrace = prepareStackTrace
-  }
-
-  // Support runtime transpilers that include inline source maps
-  if (!hookRequireInstalled && options.hookRequire === true) {
-    hookRequireInstalled = true
+// This is copied almost verbatim from the V8 source code at
+// https://code.google.com/p/v8/source/browse/trunk/src/messages.js. The
+// implementation of wrapCallSite() used to just forward to the actual source
+// code of CallSite.prototype.toString but unfortunately a new release of V8
+// did something to the prototype chain and broke the shim. The only fix I
+// could find was copy/paste.
+function toString (frame: NodeJS.CallSite): string {
+  let fileName: string
+  let fileLocation = ''
+  if (frame.isNative()) {
+    fileLocation = 'native'
+  } else {
     // @ts-expect-error
-    var $compile = Module.prototype._compile
-    // @ts-expect-error
-    Module.prototype._compile = function (content: string, filename: string) {
-      fileContentsCache[filename] = content
-      // @ts-expect-error
-      sourceMapCache[filename] = undefined
-      return $compile.call(this, content, filename)
+    fileName = frame.getScriptNameOrSourceURL() ?? ''
+    if (fileName === '' && frame.isEval()) {
+      fileLocation = frame.getEvalOrigin() ?? ''
+      fileLocation += ', ' // Expecting source position to follow.
+    }
+
+    if (fileName !== '') {
+      fileLocation += fileName
+    } else {
+      // Source code does not originate from a file and is not native, but we
+      // can still get the source position inside the source string, e.g. in
+      // an eval string.
+      fileLocation += '<anonymous>'
+    }
+    var lineNumber = frame.getLineNumber()
+    if (lineNumber !== null) {
+      fileLocation += ':' + lineNumber.toString()
+      var columnNumber = frame.getColumnNumber()
+      if (columnNumber !== null) {
+        fileLocation += ':' + columnNumber.toString()
+      }
     }
   }
 
-  if (!uncaughtShimInstalled && options.handleUncaughtExceptions !== false) {
-    uncaughtShimInstalled = true
-    shimEmitUncaughtException()
+  var line = ''
+  var functionName = frame.getFunctionName()
+  var addSuffix = true
+  var isConstructor = frame.isConstructor()
+  var isMethodCall = !(frame.isToplevel() || isConstructor)
+  if (isMethodCall) {
+    var typeName = frame.getTypeName()
+    var methodName = frame.getMethodName()
+    if (functionName !== null) {
+      if (typeName !== null && functionName.indexOf(typeName) !== 0) {
+        line += typeName + '.'
+      }
+      line += functionName
+      if (methodName !== null && functionName.indexOf('.' + methodName) !== functionName.length - methodName.length - 1) {
+        line += ' [as ' + methodName + ']'
+      }
+    } else {
+      line += (typeName ?? '') + '.' + (methodName ?? '<anonymous>')
+    }
+  } else if (isConstructor) {
+    line += 'new ' + (functionName ?? '<anonymous>')
+  } else if (functionName !== null) {
+    line += functionName
+  } else {
+    line += fileLocation
+    addSuffix = false
   }
+  if (addSuffix) {
+    line += ' (' + fileLocation + ')'
+  }
+  return line
 }

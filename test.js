@@ -2,7 +2,7 @@ require('./source-map-support').install({
   emptyCacheBetweenOperations: true // Needed to be able to test for failure
 });
 
-var SourceMapGenerator = require('source-map').SourceMapGenerator;
+var SourceMapGenerator = require('@gerhobbelt/source-map').SourceMapGenerator;
 var child_process = require('child_process');
 var assert = require('assert');
 var fs = require('fs');
