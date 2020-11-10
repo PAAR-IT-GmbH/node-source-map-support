@@ -1,5 +1,7 @@
 node_modules/
-source-map-support.d.*
-source-map-support.j*
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
 .generated*
 .original*

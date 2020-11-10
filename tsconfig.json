@@ -10,6 +10,8 @@
       "module": "CommonJS",
     },
     "include": [
-        "source-map-support.ts"
+        "source-map-support.ts",
+        "register.ts",
+        "register-hook-require.ts"
     ]
 }
