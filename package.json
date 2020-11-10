@@ -1,7 +1,7 @@
 {
   "name": "@paar-it-gmbh/source-map-support",
   "description": "Fixes stack traces for files with source maps",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "main": "source-map-support.js",
   "scripts": {
     "build": "tsc",
@@ -32,7 +32,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "types": "./source-map-support.js.d.ts",
+  "types": "./source-map-support.d.ts",
   "files": [
     "package.json",
     "source-map-support.js",
