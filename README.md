@@ -26,7 +26,7 @@ From here you have two options.
 ##### CLI Usage
 
 ```bash
-node -r source-map-support/register compiled.js
+node -r @paar-it-gmbh/source-map-support/register compiled.js
 ```
 
 ##### Programmatic Usage
@@ -34,17 +34,17 @@ node -r source-map-support/register compiled.js
 Put the following line at the top of the compiled file.
 
 ```js
-require('source-map-support').install();
+require('@paar-it-gmbh/source-map-support').install();
 ```
 
 It is also possible to install the source map support directly by
 requiring the `register` module which can be handy with ES6:
 
 ```js
-import 'source-map-support/register'
+import '@paar-it-gmbh/source-map-support/register'
 
 // Instead of:
-import sourceMapSupport from 'source-map-support'
+import sourceMapSupport from '@paar-it-gmbh/source-map-support'
 sourceMapSupport.install()
 ```
 Note: if you're using babel-register, it includes source-map-support already.
@@ -52,28 +52,7 @@ Note: if you're using babel-register, it includes source-map-support already.
 It is also very useful with Mocha:
 
 ```
-$ mocha --require source-map-support/register tests/
-```
-
-#### Browser support
-
-This library also works in Chrome. While the DevTools console already supports source maps, the V8 engine doesn't and `Error.prototype.stack` will be incorrect without this library. Everything will just work if you deploy your source files using [browserify](http://browserify.org/). Just make sure to pass the `--debug` flag to the browserify command so your source maps are included in the bundled code.
-
-This library also works if you use another build process or just include the source files directly. In this case, include the file `browser-source-map-support.js` in your page and call `sourceMapSupport.install()`. It contains the whole library already bundled for the browser using browserify.
-
-```html
-<script src="browser-source-map-support.js"></script>
-<script>sourceMapSupport.install();</script>
-```
-
-This library also works if you use AMD (Asynchronous Module Definition), which is used in tools like [RequireJS](http://requirejs.org/). Just list `browser-source-map-support` as a dependency:
-
-```html
-<script>
-  define(['browser-source-map-support'], function(sourceMapSupport) {
-    sourceMapSupport.install();
-  });
-</script>
+$ mocha --require @paar-it-gmbh/source-map-support/register tests/
 ```
 
 ## Options
@@ -102,20 +81,10 @@ require('source-map-support').install({
 });
 ```
 
-The module will by default assume a browser environment if XMLHttpRequest and window are defined. If either of these do not exist it will instead assume a node environment.
-In some rare cases, e.g. when running a browser emulation and where both variables are also set, you can explictly specify the environment to be either 'browser' or 'node'.
-
-```js
-require('source-map-support').install({
-  environment: 'node'
-});
-```
-
 To support files with inline source maps, the `hookRequire` options can be specified, which will monitor all source files for inline source maps.
 
-
 ```js
-require('source-map-support').install({
+require('@paar-it-gmbh/source-map-support').install({
   hookRequire: true
 });
 ```
@@ -124,7 +93,7 @@ This monkey patches the `require` module loading chain, so is not enabled by def
 
 ## Demos
 
-#### Basic Demo
+### Basic Demo
 
 original.js:
 
@@ -135,7 +104,7 @@ throw new Error('test'); // This is the original code
 compiled.js:
 
 ```js
-require('source-map-support').install();
+require('@paar-it-gmbh/source-map-support').install();
 
 throw new Error('test'); // This is the compiled code
 // The next line defines the sourceMapping.
@@ -173,13 +142,13 @@ Error: test
     at node.js:901:3
 ```
 
-#### TypeScript Demo
+### TypeScript Demo
 
 demo.ts:
 
 ```typescript
 declare function require(name: string);
-require('source-map-support').install();
+require('@paar-it-gmbh/source-map-support').install();
 class Foo {
   constructor() { this.bar(); }
   bar() { throw new Error('this is a demo'); }
@@ -190,7 +159,7 @@ new Foo();
 Compile and run the file using the TypeScript compiler from the terminal:
 
 ```
-$ npm install source-map-support typescript
+$ npm install @paar-it-gmbh/source-map-support typescript
 $ node_modules/typescript/bin/tsc -sourcemap demo.ts
 $ node demo.js
 
@@ -210,12 +179,12 @@ Error: this is a demo
     at node.js:901:3
 ```
 
-There is also the option to use `-r source-map-support/register` with typescript, without the need add the `require('source-map-support').install()` in the code base:
+There is also the option to use `-r @paar-it-gmbh/source-map-support/register` with typescript, without the need add the `require('@paar-it-gmbh/source-map-support').install()` in the code base:
 
 ```
-$ npm install source-map-support typescript
+$ npm install @paar-it-gmbh/source-map-support typescript
 $ node_modules/typescript/bin/tsc  -sourcemap demo.ts
-$ node -r source-map-support/register demo.js
+$ node -r @paar-it-gmbh/source-map-support/register demo.js
 
 demo.ts:5
   bar() { throw new Error('this is a demo'); }
@@ -233,12 +202,12 @@ Error: this is a demo
     at node.js:901:3
 ```
 
-#### CoffeeScript Demo
+### CoffeeScript Demo
 
 demo.coffee:
 
 ```coffee
-require('source-map-support').install()
+require('@paar-it-gmbh/source-map-support').install()
 foo = ->
   bar = -> throw new Error 'this is a demo'
   bar()
@@ -248,7 +217,7 @@ foo()
 Compile and run the file using the CoffeeScript compiler from the terminal:
 
 ```sh
-$ npm install source-map-support coffeescript
+$ npm install @paar-it-gmbh/source-map-support coffeescript
 $ node_modules/.bin/coffee --map --compile demo.coffee
 $ node demo.js
 
@@ -270,14 +239,7 @@ Error: this is a demo
 
 ## Tests
 
-This repo contains both automated tests for node and manual tests for the browser. The automated tests can be run using mocha (type `mocha` in the root directory). To run the manual tests:
-
-* Build the tests using `build.js`
-* Launch the HTTP server (`npm run serve-tests`) and visit
-  * http://127.0.0.1:1336/amd-test
-  * http://127.0.0.1:1336/browser-test
-  * http://127.0.0.1:1336/browserify-test - **Currently not working** due to a bug with browserify (see [pull request #66](https://github.com/evanw/node-source-map-support/pull/66) for details).
-* For `header-test`, run `server.js` inside that directory and visit http://127.0.0.1:1337/
+The automated tests can be run using mocha (type `mocha` in the root directory).
 
 ## License
 
