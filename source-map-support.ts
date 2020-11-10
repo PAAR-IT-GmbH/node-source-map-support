@@ -18,6 +18,10 @@ interface Options {
   emptyCacheBetweenOperations?: boolean
   handleUncaughtExceptions?: boolean
   hookRequire?: boolean
+  retrieveSourceMap?: (path: string) => SourceMapRaw | null
+  retrieveFile?: (path: string) => string | null
+  pathSanitize?: (path: string) => string
+  stackFilter?: (err: Error, stackTraces: NodeJS.CallSite[]) => boolean
 }
 
 // Only install once if called multiple times
@@ -25,6 +29,27 @@ let installed = false
 
 // If true, the caches are reset before a stack trace formatting operation
 let emptyCacheBetweenOperations = false
+
+// Handles the source map retrieval, can be overwritten by retrieveSourceMap
+let customRetrieveSourceMap = (path: string): SourceMapRaw | null => {
+  return retrieveSourceMap(path)
+}
+
+// Handles the file retrieval, can be overwritten by retrieveFile
+let customRetrieveFile = (path: string): string | null => {
+  return retrieveFile(path)
+}
+
+// Handles the path sanitation, can be overwritten by pathSanitize
+let customPathSanitize = (path: string): string => {
+  return pathSanitize(path)
+}
+
+// Handles the decision, if source maps should be applied
+// eslint-disable-next-line handle-callback-err
+let customStackFilter = (err: Error, stackTraces: NodeJS.CallSite[]): boolean => {
+  return true
+}
 
 // Maps a file path to a string containing the file contents
 let fileContentsCache: { [key: string]: string | null } = {}
@@ -36,15 +61,17 @@ let sourceMapCache: { [key: string]: SourceMap | null } = {}
 const reSourceMap = /^data:application\/json[^,]+base64,/
 
 export function install (options?: Options): void {
-  if (installed) return
+  if (installed) throw new Error('Source Map Support already initialized.')
   installed = true
 
   options = options ?? {}
 
   // Configure options
-  if (!emptyCacheBetweenOperations) {
-    emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true
-  }
+  emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true
+  customRetrieveSourceMap = options.retrieveSourceMap ?? customRetrieveSourceMap
+  customRetrieveFile = options.retrieveFile ?? customRetrieveFile
+  customPathSanitize = options.pathSanitize ?? customPathSanitize
+  customStackFilter = options.stackFilter ?? customStackFilter
 
   // Install the error reformatter
   Error.prepareStackTrace = prepareStackTrace
@@ -77,7 +104,7 @@ export function getErrorSource (error: Error): null | string {
     const column = +match[3]
 
     // Support the inline sourceContents inside the source map
-    const contents = retrieveFile(source)
+    const contents = retrieveFileCached(source)
 
     if (contents === null) return null
 
@@ -90,7 +117,7 @@ export function getErrorSource (error: Error): null | string {
   return null
 }
 
-function retrieveFile (path: string): string | null {
+export function pathSanitize (path: string): string {
   // Trim the path to make sure there is no extra whitespace.
   path = path.trim()
   if (/^file:/.test(path)) {
@@ -101,17 +128,24 @@ function retrieveFile (path: string): string | null {
         : '/' // file:///root-dir/file -> /root-dir/file
     })
   }
+  return path
+}
+
+export function retrieveFile (path: string): string | null {
+  try {
+    return fs.readFileSync(path, 'utf8')
+  } catch (er) {
+    /* ignore any errors */
+    return null
+  }
+}
+
+function retrieveFileCached (path: string): string | null {
+  path = customPathSanitize(path)
   if (path in fileContentsCache) {
     return fileContentsCache[path]
   }
-
-  let contents = ''
-  try {
-    contents = fs.readFileSync(path, 'utf8')
-  } catch (er) {
-    /* ignore any errors */
-  }
-
+  const contents = customRetrieveFile(path)
   fileContentsCache[path] = contents
   return contents
 }
@@ -132,9 +166,9 @@ function supportRelativeURL (file: string | null, url: string): string {
   return protocol + path.resolve(dir.slice(protocol.length), url)
 }
 
-function retrieveSourceMapURL (source: string): string | null {
+export function retrieveSourceMapURL (source: string): string | null {
   // Get the URL of the source map
-  const fileData = retrieveFile(source)
+  const fileData = retrieveFileCached(source)
   if (fileData === null) return null
 
   const re = /(?:\/\/[@#][\s]*sourceMappingURL=([^\s'"]+)[\s]*$)|(?:\/\*[@#][\s]*sourceMappingURL=([^\s*'"]+)[\s]*(?:\*\/)[\s]*$)/mg
@@ -152,7 +186,7 @@ function retrieveSourceMapURL (source: string): string | null {
 // there is no source map.  The map field may be either a string or the parsed
 // JSON object (ie, it must be a valid argument to the SourceMapConsumer
 // constructor).
-function retrieveSourceMap (source: string): SourceMapRaw | null {
+export function retrieveSourceMap (source: string): SourceMapRaw | null {
   let sourceMappingURL = retrieveSourceMapURL(source)
   if (sourceMappingURL === null) return null
 
@@ -166,7 +200,7 @@ function retrieveSourceMap (source: string): SourceMapRaw | null {
   } else {
     // Support source map URLs relative to the source URL
     sourceMappingURL = supportRelativeURL(source, sourceMappingURL)
-    sourceMapData = retrieveFile(sourceMappingURL)
+    sourceMapData = retrieveFileCached(sourceMappingURL)
   }
 
   if (sourceMapData === null) {
@@ -182,8 +216,7 @@ function retrieveSourceMap (source: string): SourceMapRaw | null {
 function mapSourcePosition (source: string, line: number, column: number): MappedPosition | null {
   let sourceMap = sourceMapCache[source]
   if (sourceMap === undefined) {
-    // Call the (overrideable) retrieveSourceMap function to get the source map.
-    const urlAndMap = retrieveSourceMap(source)
+    const urlAndMap = customRetrieveSourceMap(source)
     if (urlAndMap !== null) {
       const consumer = (new SourceMapConsumerSync(urlAndMap.map as any)) as SourceMapConsumer
       sourceMap = sourceMapCache[source] = {
@@ -383,9 +416,13 @@ function prepareStackTrace (err: Error, stackTraces: NodeJS.CallSite[]): string 
 
   const state = { nextPosition: null, curPosition: null }
 
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  const wrap = customStackFilter(err, stackTraces)
+
   const processedStack = new Array(stackTraces.length)
   for (let i = stackTraces.length - 1; i >= 0; i--) {
-    processedStack[i] = '\n    at ' + wrapCallSite(stackTraces[i], state)
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    processedStack[i] = '\n    at ' + (wrap ? wrapCallSite(stackTraces[i], state) : stackTraces[i].toString())
     state.nextPosition = state.curPosition
   }
   state.curPosition = state.nextPosition = null

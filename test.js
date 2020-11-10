@@ -117,6 +117,7 @@ function compareStdout(done, sourceMap, source, expected) {
     '//@ sourceMappingURL=.generated.js.map');
   child_process.exec('node ./.generated', function(error, stdout, stderr) {
     try {
+      // console.log("std", stdout, stderr)
       compareLines(
         (stdout + stderr)
           .trim()
@@ -575,5 +576,33 @@ it('normal console.trace', function(done) {
   ], [
     'Trace: test',
     /^    at Object\.<anonymous> \((?:.*[/\\])?line2\.js:1002:102\)$/
+  ]);
+});
+
+it('should consult custom source map provider once', function(done) {
+  compareStdout(done, createSingleLineSourceMap(), [
+    '',
+    'var count = 0;',
+    'function foo() {',
+    '  console.log(new Error("this is the error").stack.split("\\n").slice(0, 2).join("\\n"));',
+    '}',
+    'require("./source-map-support").install({',
+    '  retrieveSourceMap: function(name) {',
+    '    if (/\\.generated.js$/.test(name)) {',
+    '      count++;',
+    '      return ' + JSON.stringify({url: '.original.js', map: createMultiLineSourceMapWithSourcesContent().toJSON()}) + ';',
+    '    }',
+    '    return null; ',
+    '  }',
+    '});',
+    'process.nextTick(foo);',
+    'process.nextTick(foo);',
+    'process.nextTick(function() { console.log(count); });',
+  ], [
+    'Error: this is the error',
+    /^    at foo \((?:.*[/\\])?original\.js:1004:5\)$/,
+    'Error: this is the error',
+    /^    at foo \((?:.*[/\\])?original\.js:1004:5\)$/,
+    '1', // The retrieval should only be attempted once
   ]);
 });
