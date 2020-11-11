@@ -5,3 +5,4 @@ node_modules/
 *.d.ts.map
 .generated*
 .original*
+package-lock.json
