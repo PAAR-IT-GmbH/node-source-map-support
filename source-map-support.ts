@@ -24,8 +24,14 @@ interface Options {
   stackFilter?: (err: Error, stackTraces: NodeJS.CallSite[]) => boolean
 }
 
-// Only install once if called multiple times
-let installed = false
+// Only prepare stack trace once
+let stackTracePrepared = false
+
+// Only hook require once
+let requireHooked = false
+
+// Only handle uncaught exceptions once
+let uncaughtExceptionsHandled = false
 
 // If true, the caches are reset before a stack trace formatting operation
 let emptyCacheBetweenOperations = false
@@ -61,23 +67,24 @@ let sourceMapCache: { [key: string]: SourceMap | null } = {}
 const reSourceMap = /^data:application\/json[^,]+base64,/
 
 export function install (options?: Options): void {
-  if (installed) throw new Error('Source Map Support already initialized.')
-  installed = true
-
   options = options ?? {}
 
-  // Configure options
-  emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true
   customRetrieveSourceMap = options.retrieveSourceMap ?? customRetrieveSourceMap
   customRetrieveFile = options.retrieveFile ?? customRetrieveFile
   customPathSanitize = options.pathSanitize ?? customPathSanitize
   customStackFilter = options.stackFilter ?? customStackFilter
 
-  // Install the error reformatter
-  Error.prepareStackTrace = prepareStackTrace
+  // Configure options
+  emptyCacheBetweenOperations = options.emptyCacheBetweenOperations === true || emptyCacheBetweenOperations
+
+  if (!stackTracePrepared) {
+    // Install the error reformatter
+    Error.prepareStackTrace = prepareStackTrace
+    stackTracePrepared = true
+  }
 
   // Support runtime transpilers that include inline source maps
-  if (options.hookRequire === true) {
+  if (options.hookRequire === true && !requireHooked) {
     // @ts-expect-error
     const $compile = Module.prototype._compile
     // @ts-expect-error
@@ -87,10 +94,12 @@ export function install (options?: Options): void {
       sourceMapCache[filename] = undefined
       return $compile.call(this, content, filename)
     }
+    requireHooked = true
   }
 
-  if (options.handleUncaughtExceptions !== false) {
+  if (options.handleUncaughtExceptions !== false && !uncaughtExceptionsHandled) {
     shimEmitUncaughtException()
+    uncaughtExceptionsHandled = true
   }
 }
 
