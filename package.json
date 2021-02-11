@@ -1,14 +1,15 @@
 {
   "name": "@paar-it-gmbh/source-map-support",
   "description": "Fixes stack traces for files with source maps",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "main": "./source-map-support.js",
   "scripts": {
     "build": "tsc",
-    "test": "mocha"
+    "test": "mocha",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@gerhobbelt/source-map": "^0.8.0-11"
+    "source-map-js": "^0.6.2"
   },
   "devDependencies": {
     "@types/node": "^14.14.20",

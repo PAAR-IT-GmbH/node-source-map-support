@@ -1,5 +1,4 @@
-// @ts-expect-error
-import { SourceMapConsumerSync, SourceMapConsumer, MappedPosition } from '@gerhobbelt/source-map'
+import { SourceMapConsumer, MappedPosition } from 'source-map-js'
 import path from 'path'
 import fs from 'fs'
 import Module from 'module'
@@ -53,7 +52,7 @@ let customPathSanitize = (path: string): string => {
 
 // Handles the decision, if source maps should be applied
 // eslint-disable-next-line handle-callback-err
-let customStackFilter = (err: Error, stackTraces: NodeJS.CallSite[]): boolean => {
+let customStackFilter = (_1: Error, _2: NodeJS.CallSite[]): boolean => {
   return true
 }
 
@@ -227,7 +226,7 @@ function mapSourcePosition (source: string, line: number, column: number): Mappe
   if (sourceMap === undefined) {
     const urlAndMap = customRetrieveSourceMap(source)
     if (urlAndMap !== null) {
-      const consumer = (new SourceMapConsumerSync(urlAndMap.map as any)) as SourceMapConsumer
+      const consumer = (new SourceMapConsumer(urlAndMap.map as any))
       sourceMap = sourceMapCache[source] = {
         url: urlAndMap.url,
         map: consumer
